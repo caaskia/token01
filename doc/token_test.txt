@@ -1,0 +1,35 @@
+Используйте curl для отправки POST-запроса к конечной точке /login:
+Запустите следующую команду, чтобы проверить функциональность входа в систему:
+
+==========================================================================
+curl -H "Content-Type: application/json" -X POST \
+  -d '{"username":"test","password":"test"}' http://localhost:8000/login
+-------------------------------------------------------------------------
+{
+"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzE3MzU2Nzk1LCJuYmYiOjE3MTczNTY3OTUsImp0aSI6ImVmYmVjZjlmLTI3NzUtNGNmNS1hZjYwLTAwZGZkM2JiN2VkZCIsImV4cCI6MTcxNzM1NzY5NSwidHlwZSI6ImFjY2VzcyIsImZyZXNoIjpmYWxzZX0.7VTQwWKvfoyEBSnurU4GSMBIvG13bw66lkBexPSS8NU",
+
+"refresh_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzE3MzU2Nzk1LCJuYmYiOjE3MTczNTY3OTUsImp0aSI6IjRhNmQ3YTljLTcyZjAtNDk0ZS1hMDQ1LTZlOWMwYTFjNGVjZSIsImV4cCI6MTcxOTk0ODc5NSwidHlwZSI6InJlZnJlc2gifQ.7HqCk6fKlaCq1ALt6aDGhZiUvL_bBD4GPIKqMh9jfJI"
+}
+------------------------------------------------------------------------
+export ACCESS_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzE3MzU2Nzk1LCJuYmYiOjE3MTczNTY3OTUsImp0aSI6ImVmYmVjZjlmLTI3NzUtNGNmNS1hZjYwLTAwZGZkM2JiN2VkZCIsImV4cCI6MTcxNzM1NzY5NSwidHlwZSI6ImFjY2VzcyIsImZyZXNoIjpmYWxzZX0.7VTQwWKvfoyEBSnurU4GSMBIvG13bw66lkBexPSS8NU"
+
+export REFRESH_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzE3MzU2Nzk1LCJuYmYiOjE3MTczNTY3OTUsImp0aSI6IjRhNmQ3YTljLTcyZjAtNDk0ZS1hMDQ1LTZlOWMwYTFjNGVjZSIsImV4cCI6MTcxOTk0ODc5NSwidHlwZSI6InJlZnJlc2gifQ.7HqCk6fKlaCq1ALt6aDGhZiUvL_bBD4GPIKqMh9jfJI"
+
+
+
+================================
+Testing the /protected Endpoint
+-------------------------------
+curl -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8000/protected
+
+===============================
+Testing the /refresh Endpoint
+-------------------------------
+curl -H "Authorization: Bearer $REFRESH_TOKEN" -X POST http://localhost:8000/refresh
+
+
+=================================
+Testing the /logout Endpoint
+-------------------------------
+curl -H "Authorization: Bearer $ACCESS_TOKEN" -X POST http://localhost:8000/logout
+----------------------------------------------------------------------------------

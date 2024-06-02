@@ -1,0 +1,40 @@
+sudo apt install redis-tools
+
+==============================================================================
+Login and get tokens:
+----------------------------------
+response=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username":"test","password":"test"}' http://localhost:8000/login)
+access_token=$(echo $response | jq -r .access_token)
+refresh_token=$(echo $response | jq -r .refresh_token)
+-------------------------------------------------
+
+==========================
+Revoke the access token:
+Отмените токен доступа:
+----------------------------------------------------
+curl -H "Authorization: Bearer $access_token" -X DELETE http://localhost:8000/access-revoke
+----------------------------------------------------
+
+==============================
+Verify access token revocation:
+Проверьте отзыв токена доступа:
+-------------------------------
+curl -H "Authorization: Bearer $access_token" http://localhost:8000/protected
+===============================================================================
+
+============================
+Revoke the refresh token:
+Отмените токен обновления:
+-------------------------------
+curl -H "Authorization: Bearer $refresh_token" -X DELETE http://localhost:8000/refresh-revoke
+==============================================
+
+
+===================================
+Verify refresh token revocation:
+Проверьте отзыв токена обновления:
+------------------------------------
+curl -H "Authorization: Bearer $refresh_token" -X POST http://localhost:8000/refresh
+==========================================
+
+export ACCESS_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzE3MzU4Mzg1LCJuYmYiOjE3MTczNTgzODUsImp0aSI6IjZmNjA3Y2Q2LTE3MmEtNGVlMC1hMGQ1LTEyZWNjMDE2ZmE1OSIsImV4cCI6MTcxNzM1OTI4NSwidHlwZSI6ImFjY2VzcyIs"

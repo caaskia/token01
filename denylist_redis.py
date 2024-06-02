@@ -1,0 +1,113 @@
+#   This example has not been tested with this async fork, if it worked for you - write to me :)
+from datetime import timedelta
+
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from redis import Redis
+
+from async_fastapi_jwt_auth import AuthJWT
+from async_fastapi_jwt_auth.exceptions import AuthJWTException
+from async_fastapi_jwt_auth.auth_jwt import AuthJWTBearer
+
+app = FastAPI()
+auth_dep = AuthJWTBearer()
+
+
+class User(BaseModel):
+    username: str
+    password: str
+
+
+class Settings(BaseModel):
+    authjwt_secret_key: str = "secret"
+    authjwt_denylist_enabled: bool = True
+    authjwt_denylist_token_checks: set = {"access", "refresh"}
+    access_expires: int = timedelta(minutes=15)
+    refresh_expires: int = timedelta(days=30)
+
+
+settings = Settings()
+
+
+@AuthJWT.load_config
+def get_config():
+    return settings
+
+
+@app.exception_handler(AuthJWTException)
+def authjwt_exception_handler(request: Request, exc: AuthJWTException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
+
+# Setup our redis connection for storing the denylist tokens
+redis_conn = Redis(host="localhost", port=6379, db=0, decode_responses=True)
+
+
+# Create our function to check if a token has been revoked. In this simple
+# case, we will just store the tokens jti (unique identifier) in redis.
+# This function will return the revoked status of a token. If a token exists
+# in redis and value is true, token has been revoked
+@AuthJWT.token_in_denylist_loader
+async def check_if_token_in_denylist(decrypted_token):
+    jti = decrypted_token["jti"]
+    entry = redis_conn.get(jti)
+    return entry and entry == "true"
+
+
+@app.post("/login")
+async def login(user: User, authorize: AuthJWT = Depends(auth_dep)):
+    if user.username != "test" or user.password != "test":
+        raise HTTPException(status_code=401, detail="Bad username or password")
+
+    access_token = await authorize.create_access_token(subject=user.username)
+    refresh_token = await authorize.create_refresh_token(subject=user.username)
+    return {"access_token": access_token, "refresh_token": refresh_token}
+
+
+# Standard refresh endpoint. Token in denylist will not
+# be able to access this endpoint
+@app.post("/refresh")
+async def refresh(authorize: AuthJWT = Depends(auth_dep)):
+    await authorize.jwt_refresh_token_required()
+
+    current_user = await authorize.get_jwt_subject()
+    new_access_token = await authorize.create_access_token(subject=current_user)
+    return {"access_token": new_access_token}
+
+
+# Endpoint for revoking the current users access token
+@app.delete("/access-revoke")
+async def access_revoke(authorize: AuthJWT = Depends(auth_dep)):
+    await authorize.jwt_required()
+
+    # Store the tokens in redis with the value true for revoked.
+    # We can also set an expires time on these tokens in redis,
+    # so they will get automatically removed after they expired.
+    jti = (await authorize.get_raw_jwt())["jti"]
+    redis_conn.setex(jti, settings.access_expires, "true")
+    return {"detail": "Access token has been revoke"}
+
+
+# Endpoint for revoking the current users refresh token
+@app.delete("/refresh-revoke")
+async def refresh_revoke(authorize: AuthJWT = Depends(auth_dep)):
+    await authorize.jwt_refresh_token_required()
+
+    jti = (await authorize.get_raw_jwt())["jti"]
+    redis_conn.setex(jti, settings.refresh_expires, "true")
+    return {"detail": "Refresh token has been revoke"}
+
+
+# A token in denylist will not be able to access this anymore
+@app.get("/protected")
+async def protected(authorize: AuthJWT = Depends(auth_dep)):
+    await authorize.jwt_required()
+
+    current_user = await authorize.get_jwt_subject()
+    return {"user": current_user}
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("basic:app", host="0.0.0.0", port=8000, reload=True)
