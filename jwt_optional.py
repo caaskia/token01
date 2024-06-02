@@ -50,4 +50,4 @@ async def partially_protected(authorize: AuthJWT = Depends(auth_dep)):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("basic:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("jwt_optional:app", host="0.0.0.0", port=8000, reload=True)
