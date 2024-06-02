@@ -6,6 +6,7 @@ import redis.asyncio as redis
 from async_fastapi_jwt_auth import AuthJWT
 from async_fastapi_jwt_auth.exceptions import AuthJWTException
 from async_fastapi_jwt_auth.auth_jwt import AuthJWTBearer
+import secrets
 
 app = FastAPI()
 auth_dep = AuthJWTBearer()
@@ -15,10 +16,10 @@ class User(BaseModel):
     password: str
 
 class Settings(BaseModel):
-    authjwt_secret_key: str = "secret"
+    authjwt_secret_key: str = secrets.token_urlsafe(32)  # Генерируем случайный секретный ключ
     authjwt_denylist_enabled: bool = True
     authjwt_denylist_token_checks: set = {"access", "refresh"}
-    access_expires: timedelta = timedelta(minutes=1)
+    access_expires: timedelta = timedelta(minutes=15)
     refresh_expires: timedelta = timedelta(days=30)
 
 settings = Settings()
@@ -46,11 +47,6 @@ async def login(user: User, authorize: AuthJWT = Depends(auth_dep)):
 
     access_token = await authorize.create_access_token(subject=user.username)
     refresh_token = await authorize.create_refresh_token(subject=user.username)
-
-    # Debug print statements
-    print(f"Access Token: {access_token}")
-    print(f"Refresh Token: {refresh_token}")
-
     return {"access_token": access_token, "refresh_token": refresh_token}
 
 @app.post("/refresh")
@@ -74,13 +70,13 @@ async def refresh_revoke(authorize: AuthJWT = Depends(auth_dep)):
     await redis_conn.setex(jti, int(settings.refresh_expires.total_seconds()), "true")
     return {"detail": "Refresh token has been revoked"}
 
+
 @app.get("/protected")
 async def protected(authorize: AuthJWT = Depends(auth_dep)):
     await authorize.jwt_required()
     current_user = await authorize.get_jwt_subject()
     return {"user": current_user}
 
-# New logout endpoint
 @app.post("/logout")
 async def logout(authorize: AuthJWT = Depends(auth_dep)):
     # Revoke access token
@@ -94,6 +90,12 @@ async def logout(authorize: AuthJWT = Depends(auth_dep)):
     await redis_conn.setex(refresh_jti, int(settings.refresh_expires.total_seconds()), "true")
 
     return {"detail": "Tokens have been revoked"}
+
+@app.post("/logout-others")
+async def logout_others(authorize: AuthJWT = Depends(auth_dep)):
+    jti = (await authorize.get_raw_jwt())["jti"]
+    await redis_conn.set("global_logout", jti)
+    return {"detail": "All other sessions have been logged out"}
 
 if __name__ == "__main__":
     import uvicorn

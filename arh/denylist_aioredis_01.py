@@ -18,7 +18,7 @@ class Settings(BaseModel):
     authjwt_secret_key: str = "secret"
     authjwt_denylist_enabled: bool = True
     authjwt_denylist_token_checks: set = {"access", "refresh"}
-    access_expires: timedelta = timedelta(minutes=1)
+    access_expires: timedelta = timedelta(minutes=15)
     refresh_expires: timedelta = timedelta(days=30)
 
 settings = Settings()
@@ -80,6 +80,7 @@ async def protected(authorize: AuthJWT = Depends(auth_dep)):
     current_user = await authorize.get_jwt_subject()
     return {"user": current_user}
 
+# New logout endpoint
 @app.post("/logout")
 async def logout(authorize: AuthJWT = Depends(auth_dep)):
     # Revoke access token
@@ -94,12 +95,6 @@ async def logout(authorize: AuthJWT = Depends(auth_dep)):
 
     return {"detail": "Tokens have been revoked"}
 
-@app.post("/logout-others")
-async def logout_others(authorize: AuthJWT = Depends(auth_dep)):
-    jti = (await authorize.get_raw_jwt())["jti"]
-    await redis_conn.set("global_logout", jti)
-    return {"detail": "All other sessions have been logged out"}
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("denylist_aioredis:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("basic:app", host="0.0.0.0", port=8000, reload=True)
