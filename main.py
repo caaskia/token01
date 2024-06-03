@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-
+from passlib.context import CryptContext
 from async_fastapi_jwt_auth import AuthJWT
 from async_fastapi_jwt_auth.exceptions import AuthJWTException
 from async_fastapi_jwt_auth.auth_jwt import AuthJWTBearer
@@ -11,6 +11,11 @@ from datetime import timedelta
 
 app = FastAPI()
 auth_dep = AuthJWTBearer()
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Simple in-memory user storage for demonstration purposes
+users_db = {}
 
 
 class User(BaseModel):
@@ -56,9 +61,27 @@ async def set_jwt_cookies(authorize: AuthJWT, access_token: str, refresh_token: 
     await authorize.set_refresh_cookies(refresh_token)
 
 
+# Utility functions for password hashing
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+@app.post("/register")
+async def register(user: User):
+    if user.username in users_db:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    hashed_password = hash_password(user.password)
+    users_db[user.username] = hashed_password
+    return {"msg": "User registered successfully"}
+
+
 @app.post("/login")
 async def login(user: User, authorize: AuthJWT = Depends(auth_dep)):
-    if user.username != "test" or user.password != "test":
+    if user.username not in users_db or not verify_password(user.password, users_db[user.username]):
         raise HTTPException(status_code=401, detail="Bad username or password")
 
     access_token = await authorize.create_access_token(subject=user.username)

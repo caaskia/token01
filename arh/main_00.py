@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from passlib.context import CryptContext
+
 from async_fastapi_jwt_auth import AuthJWT
 from async_fastapi_jwt_auth.exceptions import AuthJWTException
 from async_fastapi_jwt_auth.auth_jwt import AuthJWTBearer
@@ -12,13 +12,10 @@ from datetime import timedelta
 app = FastAPI()
 auth_dep = AuthJWTBearer()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 class User(BaseModel):
     username: str
     password: str
-    hash_password: str = None  # Default to None for creating new users
 
 
 class Settings(BaseModel):
@@ -59,28 +56,9 @@ async def set_jwt_cookies(authorize: AuthJWT, access_token: str, refresh_token: 
     await authorize.set_refresh_cookies(refresh_token)
 
 
-# Utility functions for password hashing
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-@app.post("/register")
-async def register(user: User):
-    hashed_password = hash_password(user.password)
-    # Here you would typically save the user with the hashed password to your database
-    # For this example, we'll just return the hashed password
-    return {"username": user.username, "hash_password": hashed_password}
-
-
 @app.post("/login")
 async def login(user: User, authorize: AuthJWT = Depends(auth_dep)):
-    # In a real application, you would retrieve the hashed password from your database
-    # For this example, we'll assume the hash_password field contains the correct hashed password
-    if not verify_password(user.password, user.hash_password):
+    if user.username != "test" or user.password != "test":
         raise HTTPException(status_code=401, detail="Bad username or password")
 
     access_token = await authorize.create_access_token(subject=user.username)
@@ -99,9 +77,6 @@ async def refresh(authorize: AuthJWT = Depends(auth_dep)):
     current_user = await authorize.get_jwt_subject()
     new_access_token = await authorize.create_access_token(subject=current_user)
     new_refresh_token = await authorize.create_refresh_token(subject=current_user)
-
-    new_jti = (await authorize.get_raw_jwt(new_access_token))["jti"]
-    await redis_conn.set(f"active_jti_{current_user}", new_jti)
 
     await set_jwt_cookies(authorize, new_access_token, new_refresh_token)
     return {"msg": "The tokens have been refreshed"}
